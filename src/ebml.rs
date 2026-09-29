@@ -20,7 +20,28 @@ pub const SEEK_ID: u32 = 0x53AB;
 pub const SEEK_POSITION: u32 = 0x53AC;
 pub const INFO: u32 = 0x1549_A966;
 pub const TITLE: u32 = 0x7BA9;
+pub const TIMESTAMP_SCALE: u32 = 0x2A_D7B1;
+pub const DURATION: u32 = 0x4489;
 pub const TRACKS: u32 = 0x1654_AE6B;
+pub const TRACK_ENTRY: u32 = 0xAE;
+pub const TRACK_NUMBER: u32 = 0xD7;
+pub const TRACK_TYPE: u32 = 0x83;
+pub const CODEC_ID: u32 = 0x86;
+pub const DEFAULT_DURATION: u32 = 0x23_E383;
+pub const TRACK_LANGUAGE: u32 = 0x22_B59C;
+pub const TRACK_NAME: u32 = 0x53_6E;
+pub const VIDEO: u32 = 0xE0;
+pub const PIXEL_WIDTH: u32 = 0xB0;
+pub const PIXEL_HEIGHT: u32 = 0xBA;
+pub const DISPLAY_WIDTH: u32 = 0x54B0;
+pub const DISPLAY_HEIGHT: u32 = 0x54BA;
+pub const DISPLAY_UNIT: u32 = 0x54B2;
+pub const CODEC_PRIVATE: u32 = 0x63A2;
+pub const PROJECTION: u32 = 0x7670;
+pub const PROJECTION_POSE_ROLL: u32 = 0x7675;
+pub const AUDIO: u32 = 0xE1;
+pub const SAMPLING_FREQUENCY: u32 = 0xB5;
+pub const CHANNELS: u32 = 0x9F;
 pub const CLUSTER: u32 = 0x1F43_B675;
 pub const CUES: u32 = 0x1C53_BB6B;
 pub const ATTACHMENTS: u32 = 0x1941_A469;
@@ -82,6 +103,15 @@ pub fn read_uint(data: &[u8]) -> Option<u64> {
         return None;
     }
     Some(data.iter().fold(0u64, |a, &b| a << 8 | b as u64))
+}
+
+/// An EBML float: 4 or 8 bytes, big-endian. Any other length is not one.
+pub fn read_float(data: &[u8]) -> Option<f64> {
+    match data.len() {
+        4 => Some(f32::from_be_bytes(data.try_into().ok()?) as f64),
+        8 => Some(f64::from_be_bytes(data.try_into().ok()?)),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

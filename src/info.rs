@@ -39,6 +39,27 @@ impl Info {
         String::from_utf8(data[..end].to_vec()).ok()
     }
 
+    fn child(&self, id: u32) -> Option<Vec<u8>> {
+        let (_, whole) = self.children.iter().find(|(i, _)| *i == id)?;
+        Some(children(whole, 0).ok()?.first()?.data.to_vec())
+    }
+
+    /// Nanoseconds per timestamp tick; the format's default when absent.
+    pub fn timestamp_scale(&self) -> u64 {
+        self.child(ebml::TIMESTAMP_SCALE)
+            .and_then(|d| ebml::read_uint(&d))
+            .filter(|&s| s > 0)
+            .unwrap_or(1_000_000)
+    }
+
+    /// The segment's length in seconds, when the muxer wrote one. Live
+    /// captures and files cut short do not.
+    pub fn duration(&self) -> Option<f64> {
+        let ticks = ebml::read_float(&self.child(ebml::DURATION)?)?;
+        let secs = ticks * self.timestamp_scale() as f64 / 1e9;
+        (secs.is_finite() && secs >= 0.0).then_some(secs)
+    }
+
     /// `None` removes the title.
     pub(crate) fn set_title(&mut self, title: Option<&str>) -> Result<()> {
         if self.title().as_deref() == title {

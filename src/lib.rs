@@ -20,6 +20,7 @@ pub mod model;
 pub mod plan;
 pub mod reseat;
 pub mod scan;
+pub mod stream;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -30,6 +31,7 @@ pub use model::{SimpleTag, Tag, TagValue, Tags, Targets};
 pub use plan::{Patch, Plan};
 pub use reseat::{Padding, Seating};
 pub use scan::{Element, SeekHead};
+pub use stream::{Audio, Chroma, Track, TrackKind, Video};
 
 /// One `Tags` element and where it was found.
 #[derive(Debug, Clone)]
@@ -46,6 +48,12 @@ pub struct Metadata {
     pub doc_type: String,
     /// `Info\Title`: where ffmpeg puts a title, and what players show.
     pub title: Option<String>,
+    /// Segment length in seconds, when the file states one. Absent from
+    /// live captures and from files whose muxer never finished.
+    pub duration: Option<f64>,
+    /// Every track, in file order. Empty when the file has no `Tracks`
+    /// element this read could find (see `complete`).
+    pub tracks: Vec<Track>,
     pub tags: Vec<TagsAt>,
     /// `false` when tags may exist that this read did not find: the file
     /// has clusters, and anything after them that its SeekHead does not
@@ -72,6 +80,16 @@ fn load_info(f: &mut File, elements: &[Element], strict: bool) -> Result<Option<
         Err(err) if strict => Err(err),
         Err(_) => Ok(None),
     }
+}
+
+fn load_tracks(f: &mut File, elements: &[Element]) -> Vec<Track> {
+    let mut out = Vec::new();
+    for e in elements.iter().filter(|e| e.id == ebml::TRACKS) {
+        if let Ok(d) = scan::read_data(f, e) {
+            out.extend(stream::parse(&d, e.data_offset()));
+        }
+    }
+    out
 }
 
 fn load_tags(f: &mut File, elements: &[Element], strict: bool) -> Result<Vec<TagsAt>> {
@@ -107,6 +125,49 @@ fn global(tags: &[TagsAt]) -> impl Iterator<Item = (&str, &str)> {
 }
 
 impl Metadata {
+    /// `(name, value)` for every string tag about the segment as a whole,
+    /// at any target level (album, collection, and so on), in file order.
+    /// This is what ffprobe lists as format tags. It is wider than
+    /// [`global`](Self::global), which is the narrower set an edit may
+    /// touch; use this one to display, never to decide what to write.
+    pub fn segment(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.tags
+            .iter()
+            .flat_map(|t| t.tags.tags())
+            .filter(|t| t.is_segment_wide())
+            .flat_map(|t| t.simple_tags())
+            .filter(|s| s.is_undetermined_language())
+            .filter_map(|s| match s.value() {
+                TagValue::String(v) => Some((s.name(), v)),
+                _ => None,
+            })
+    }
+
+    /// The first of `names` that has a non-blank [`segment`](Self::segment)
+    /// tag, in the caller's order of preference. Names match without
+    /// regard to case, because muxers disagree (`TITLE`, `title`) and a
+    /// file that has passed through several carries whichever the last
+    /// one wrote. The value is trimmed; a blank one is no value.
+    pub fn first_of(&self, names: &[&str]) -> Option<String> {
+        names.iter().find_map(|want| {
+            self.segment()
+                .filter(|(n, _)| n.eq_ignore_ascii_case(want))
+                .map(|(_, v)| v.trim())
+                .find(|v| !v.is_empty())
+                .map(String::from)
+        })
+    }
+
+    /// The first video track.
+    pub fn video(&self) -> Option<&Track> {
+        self.tracks.iter().find(|t| t.kind == TrackKind::Video)
+    }
+
+    /// The first audio track.
+    pub fn audio(&self) -> Option<&Track> {
+        self.tracks.iter().find(|t| t.kind == TrackKind::Audio)
+    }
+
     /// `(name, value)` in file order. A name can repeat.
     pub fn global(&self) -> impl Iterator<Item = (&str, &str)> {
         global(&self.tags)
@@ -162,10 +223,13 @@ pub fn read(path: impl AsRef<Path>) -> Result<Metadata> {
     let mut f = File::open(path)?;
     let found = scan::locate(&mut f)?;
     let tags = load_tags(&mut f, &found.elements, false)?;
-    let title = load_info(&mut f, &found.elements, false)?.and_then(|i| i.title());
+    let info = load_info(&mut f, &found.elements, false)?;
+    let tracks = load_tracks(&mut f, &found.elements);
     Ok(Metadata {
         doc_type: found.doc.doc_type,
-        title,
+        title: info.as_ref().and_then(|i| i.title()),
+        duration: info.as_ref().and_then(Info::duration),
+        tracks,
         tags,
         complete: found.complete,
     })

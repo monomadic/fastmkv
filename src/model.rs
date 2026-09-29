@@ -92,6 +92,22 @@ impl Targets {
     }
 }
 
+impl Targets {
+    /// About the segment as a whole at any level: no non-zero UID of any
+    /// kind. [`is_global`](Self::is_global) is this at the default level
+    /// only.
+    pub fn is_segment_wide(&self) -> bool {
+        [
+            &self.track_uids,
+            &self.edition_uids,
+            &self.chapter_uids,
+            &self.attachment_uids,
+        ]
+        .iter()
+        .all(|u| u.iter().all(|&x| x == 0))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimpleTag {
     pub crc: Option<Crc>,
@@ -130,6 +146,11 @@ impl Tag {
     /// `Targets` absent or empty means the whole segment.
     pub fn is_global(&self) -> bool {
         self.targets().is_none_or(Targets::is_global)
+    }
+
+    /// Whether the tag is about the segment as a whole, at any level.
+    pub fn is_segment_wide(&self) -> bool {
+        self.targets().is_none_or(Targets::is_segment_wide)
     }
 
     pub fn simple_tags(&self) -> impl Iterator<Item = &SimpleTag> {
