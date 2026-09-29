@@ -1,0 +1,8 @@
+[package]
+name = "fastmkv"
+version = "0.1.0"
+edition = "2021"
+description = "Read and edit Matroska tags without touching the media"
+license = "MIT"
+
+[dependencies]
