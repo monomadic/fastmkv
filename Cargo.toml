@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Read and edit Matroska tags without touching the media"
 license = "MIT"
+repository = "https://github.com/monomadic/fastmkv"
+readme = "README.md"
 
 [dependencies]
