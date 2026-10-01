@@ -307,6 +307,14 @@ impl Mkv {
         let placed_apart =
             |id: u32| matches!(id, ebml::SEEK_HEAD | ebml::VOID | ebml::INFO | ebml::TAGS);
         let carried = |e: &Element| match e.id {
+            ebml::TRACKS if self.track_edits.iter().any(|t| t.element == *e) => {
+                let t = self.track_edits.iter().find(|t| t.element == *e).unwrap();
+                given(
+                    ebml::TRACKS,
+                    Some(e.offset),
+                    element_min(ebml::TRACKS, &t.body),
+                )
+            }
             ebml::CUES => Item {
                 id: e.id,
                 old: Some(e.offset),
@@ -439,7 +447,12 @@ impl Mkv {
         };
 
         (|| -> Result<()> {
-            copy(&mut src, out, 0, s.segment.offset)?;
+            if let Some(body) = &self.rotation_header {
+                out.write_all(&element_min(ebml::EBML, body))?;
+                copy(&mut src, out, s.doc.end, s.segment.offset - s.doc.end)?;
+            } else {
+                copy(&mut src, out, 0, s.segment.offset)?;
+            }
             out.write_all(&segment)?;
             let mut at = 0u64;
             for (i, data) in items.iter().zip(&cue_data) {

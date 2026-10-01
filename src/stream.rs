@@ -1,8 +1,8 @@
 //! The `Tracks` element, read for what a player or a library listing
 //! shows: what each track is, its codec, and a video track's size.
 //!
-//! Read-only. `Tracks` is never rewritten by an edit, so nothing here
-//! keeps the bytes it came from. Fields a file does not carry are `None`
+//! This display model is read-only. Rotation editing separately preserves
+//! the original track bytes in the rotation module. Fields a file does not carry are `None`
 //! rather than guessed; a track that will not parse is skipped.
 
 use crate::ebml::{self, children, Child};

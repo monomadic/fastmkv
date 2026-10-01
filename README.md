@@ -1,8 +1,8 @@
 # fastmkv
 
-Read and edit Matroska tags without touching the media.
+Read and edit Matroska metadata without touching the media.
 
-`fastmkv` changes the tags and the title of an `.mkv` or `.webm` file and
+`fastmkv` changes the tags, title, and display rotation of an `.mkv` or `.webm` file and
 leaves every cluster where it was, byte for byte. An edit to a
 multi-gigabyte file writes a few kilobytes. It has no dependencies.
 
@@ -49,6 +49,8 @@ if !mkv.seating().front {
 
 - **The media is not touched.** A write may change `Tags`, `Info` (for its
   title), the first `SeekHead`, padding, and the segment's size field.
+  A rotation edit may also change `Tracks` and upgrade the EBML header's
+  `DocTypeVersion` to 4; encoded frames remain unchanged.
   The test suite holds every write to that list, working the permitted
   regions out from the original file and not from the writer's own plan.
 - **Refusal comes before writing.** `open` checks the whole structure and
@@ -62,6 +64,39 @@ if !mkv.seating().front {
   was none, and a checksum that was already wrong is a refusal.
 - **`Info` stays at the front.** It holds the duration and timestamp scale.
   A title that does not fit is refused with `NeedsReseat`.
+
+## Lossless display rotation
+
+`set_rotation` sets an absolute angle on a video track, selected by its
+Matroska track number (`Track::number`, not a zero-based index). Positive
+angles are counterclockwise: `-90.0` turns clockwise, `90.0` turns
+counterclockwise, and `180.0` turns upside down. Finite values from -180
+through 180 are accepted. `None` removes the roll field; `Some(0.0)` writes
+an explicit zero.
+
+```rust
+let metadata = fastmkv::read("film.mkv")?;
+let number = metadata.video().expect("a video track").number;
+let mut mkv = fastmkv::open("film.mkv")?;
+mkv.set_rotation(number, Some(-90.0))?;
+match mkv.plan() {
+    Ok(plan) => {
+        // apply_to expects an existing, byte-identical copy of film.mkv.
+        plan.apply_to("copy-of-film.mkv")?;
+    }
+    Err(e) if e.kind() == Some(fastmkv::Kind::NeedsReseat) => {
+        // This destination must not exist. Pending edits are included.
+        mkv.reseat("film.rotated.mkv", fastmkv::Padding::default())?;
+    }
+    Err(e) => return Err(e),
+}
+```
+
+This writes Matroska's `ProjectionPoseRoll` field. Players must honor that
+field to show the rotation; the encoded picture is unchanged. Other tracks,
+codec configuration, and unrelated metadata are preserved. Non-rectangular
+projections and ambiguous track headers are refused. If the track or version
+header cannot grow in place, `plan` returns `NeedsReseat` before writing.
 
 ## What it refuses to edit
 
@@ -106,7 +141,6 @@ RFC 9559.
 
 - Editing through the tag tree: targeted, language-specific and nested tags
   can be read but not yet changed.
-- Duration, codecs and dimensions from `read`.
 - A new `Tags` element, in a file that had none, goes to the end of the
   file even when there is padding at the front.
 - Position fields inside clusters are corrected by `reseat`, but no tool

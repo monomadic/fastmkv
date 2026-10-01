@@ -112,6 +112,13 @@ impl Mkv {
                 body: Some(info.body()),
             });
         }
+        for t in &self.track_edits {
+            work.push(Work {
+                id: ebml::TRACKS,
+                old: Some(t.element),
+                body: Some(t.body.clone()),
+            });
+        }
         for at in self.tags.iter().filter(|t| t.dirty) {
             let body = tags_body(&at.tags);
             if at.element.is_some() || body.is_some() {
@@ -211,14 +218,14 @@ impl Mkv {
                 continue;
             }
 
-            // Info holds the duration and the timestamp scale, which a
+            // Info and Tracks describe how to decode the media, which a
             // player needs before it can play anything. At the end of the
             // file it would be the faststart problem over again, so it
             // does not go there.
-            if w.id == ebml::INFO {
+            if matches!(w.id, ebml::INFO | ebml::TRACKS) {
                 return refuse(
                     Kind::NeedsReseat,
-                    "the title does not fit at the front of the file; re-seat it",
+                    "the edited metadata does not fit at the front of the file; re-seat it",
                 );
             }
 
@@ -249,6 +256,15 @@ impl Mkv {
         }
 
         let mut patches = appended;
+        if let Some(body) = &self.rotation_header {
+            let Some(bytes) = fit(ebml::EBML, body, s.doc.end) else {
+                return refuse(
+                    Kind::NeedsReseat,
+                    "the version header needs more room; re-seat the file",
+                );
+            };
+            patches.push(Patch { offset: 0, bytes });
+        }
         if end != old_end {
             let Some(bytes) = encode_size(end - start, s.segment.size_len) else {
                 return refuse(

@@ -10,6 +10,7 @@ pub const EBML: u32 = 0x1A45_DFA3;
 pub const EBML_READ_VERSION: u32 = 0x42F7;
 pub const EBML_MAX_ID_LENGTH: u32 = 0x42F2;
 pub const EBML_MAX_SIZE_LENGTH: u32 = 0x42F3;
+pub const DOC_TYPE_VERSION: u32 = 0x4287;
 pub const DOC_TYPE: u32 = 0x4282;
 pub const DOC_TYPE_READ_VERSION: u32 = 0x4285;
 
@@ -37,6 +38,7 @@ pub const DISPLAY_WIDTH: u32 = 0x54B0;
 pub const DISPLAY_HEIGHT: u32 = 0x54BA;
 pub const DISPLAY_UNIT: u32 = 0x54B2;
 pub const CODEC_PRIVATE: u32 = 0x63A2;
+pub const PROJECTION_TYPE: u32 = 0x7671;
 pub const PROJECTION: u32 = 0x7670;
 pub const PROJECTION_POSE_ROLL: u32 = 0x7675;
 pub const AUDIO: u32 = 0xE1;

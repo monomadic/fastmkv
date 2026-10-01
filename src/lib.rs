@@ -1,4 +1,4 @@
-//! Read and edit Matroska tags without touching the media.
+//! Read and edit Matroska metadata without touching the media.
 //!
 //! Two ways in, with different promises (docs/PROPOSAL-2.md):
 //!
@@ -19,6 +19,7 @@ pub mod info;
 pub mod model;
 pub mod plan;
 pub mod reseat;
+mod rotation;
 pub mod scan;
 pub mod stream;
 
@@ -69,6 +70,8 @@ pub struct Mkv {
     pub survey: scan::Survey,
     pub info: Option<Info>,
     pub tags: Vec<TagsAt>,
+    pub(crate) track_edits: Vec<rotation::TracksEdit>,
+    pub(crate) rotation_header: Option<Vec<u8>>,
 }
 
 fn load_info(f: &mut File, elements: &[Element], strict: bool) -> Result<Option<Info>> {
@@ -247,6 +250,8 @@ pub fn open(path: impl AsRef<Path>) -> Result<Mkv> {
         survey,
         info,
         tags,
+        track_edits: Vec::new(),
+        rotation_header: None,
     })
 }
 
